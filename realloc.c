@@ -6,9 +6,9 @@
 #define INITIALSIZE 17
 #define MULTIPLIER 37
 
-bool _string_hash(void* key, long unsigned* hash);
-bool _int_hash(void* key, long unsigned* hash);
-bool _add_hash(assoc** a, void* key, long unsigned* hash);
+bool _string_hash(assoc** a, void* key, long unsigned* hash);
+bool _int_hash(assoc** a, void* key, long unsigned* hash);
+bool _add_hash(assoc** a, void* key, void* data);
 
 /*
    Initialise the Associative array
@@ -73,9 +73,10 @@ void assoc_free(assoc* a) {
 /* Multiplication method taken from \
 http://www.cs.yale.edu/homes/aspnes/pinewiki/C(2f)HashTables.html */
 
-bool _string_hash(void* key, long unsigned* hash) {
+bool _string_hash(assoc** a, void* key, long unsigned* hash) {
 
     long unsigned h;
+    assoc *p = *a;
     unsigned const char *us;
    
     if (key == NULL || hash == NULL) {
@@ -93,7 +94,7 @@ bool _string_hash(void* key, long unsigned* hash) {
         us++;
     } 
    
-    *hash = h;
+    *hash = h % p->capacity;
     return true;
 }
 
@@ -101,10 +102,11 @@ bool _string_hash(void* key, long unsigned* hash) {
 https://stackoverflow.com/questions/664014/what-integer-hash-function-are-\
 good-that-accepts-an-integer-hash-key */
 
-bool _int_hash(void* key, long unsigned* hash) {
+bool _int_hash(assoc** a, void* key, long unsigned* hash) {
 
     long unsigned h;
-    
+    assoc *p = *a;
+
     if (key == NULL || hash == NULL) {
        return false;
     }
@@ -115,15 +117,33 @@ bool _int_hash(void* key, long unsigned* hash) {
     h = ((h >> 16) ^ h) * 0x45d9f3b;
     h = (h >> 16) ^ h;
     
-    *hash = h;
+    *hash = h % p->capacity;
     return true;
 
 }
 
-bool _add_hash(assoc** a, void* key, long unsigned* hash) {
+bool _add_hash(assoc** a, void* key, void *data) {
 
-   
+    long unsigned hash;
+    assoc *p = *a;
+    
+
+    if (p->keysize == 0) {
+       _string_hash(a, key, &hash);
+       strcpy(p->hash_table[hash].key, key);
+       p->hash_table[hash].flag = true;
+       p->hash_table[hash].data = data;
+    }
+    else {
+       _int_hash(a, key, &hash);
+       memcpy(p->hash_table[hash].key, key, sizeof(int));
+       p->hash_table[hash].flag = true;
+    }
+
+    return true;
+
 }
+
 
 void _assoc_test(void) {
 
@@ -174,46 +194,50 @@ void _assoc_test(void) {
     b->hash_table[6].key = &str;
     assert(strcmp(str,*(char **)b->hash_table[6].key) == 0);
     
+
+    /* Test _string_hash function*/
+    assert(_string_hash(&a, str, &hash) == true);
+    assert(hash < INITIALSIZE);
+    strcpy(str, "Test 1");
+    assert(_string_hash(&a, str, &hash) == true);
+    assert(hash < INITIALSIZE);
+    strcpy(str, "A second test");
+    assert(_string_hash(&a, str, &hash) == true);
+    assert(hash < INITIALSIZE);
+    strcpy(str, "Third test");
+    assert(_string_hash(&a, str, &hash) == true);
+    assert(hash < INITIALSIZE);
+    printf("%lu\n", hash);
+    /* Test for NULL*/
+    assert(_string_hash(&a, NULL, &hash) == false);
+    assert(_string_hash(&a, str, NULL) == false);
+    assert(_string_hash(&a, NULL, NULL) == false);
+
+    /*Test_int_hash function*/
+    num = 334137732;
+    p = &num;
+    assert(_int_hash(&a, p, &hash) == true);
+    assert(hash < INITIALSIZE);
+    num = 412;
+    p = &num;
+    assert(_int_hash(&a, p, &hash) == true);
+    assert(hash < INITIALSIZE);
+    num = 92057229146;
+    p = &num;
+    assert(_int_hash(&a, p, &hash) == true);
+    assert(hash < INITIALSIZE);
+    num = 63729479;
+    p = &num;
+    assert(_int_hash(&a, p, &hash) == true);
+    assert(hash < INITIALSIZE);
+    /* Test for NULL*/
+    assert(_int_hash(&a, p, NULL) == false);
+    assert(_int_hash(&a, NULL, NULL) == false);
+    assert(_int_hash(&a, NULL, &hash) == false);
+
     /* Test assoc_free function*/
     assoc_free(a);
     assoc_free(b);
-
-    /* Test _string_hash function*/
-    assert(_string_hash(str, &hash) == true);
-    assert(hash > 0);
-    strcpy(str, "Test 1");
-    assert(_string_hash(str, &hash) == true);
-    assert(hash > 0);
-    strcpy(str, "A second test");
-    assert(_string_hash(str, &hash) == true);
-    assert(hash > 0);
-    strcpy(str, "Third test");
-    assert(_string_hash(str, &hash) == true);
-    assert(hash > 0);
-    /* Test for NULL*/
-    assert(_string_hash(NULL, &hash) == false);
-    assert(_string_hash(str, NULL) == false);
-    assert(_string_hash(NULL, NULL) == false);
-
-    /*Test_int_hash function*/
-    num = 334837739;
-    p = &num;
-    assert(_int_hash(p, &hash) == true);
-    num = 462;
-    p = &num;
-    assert(_int_hash(p, &hash) == true);
-    num = 92057328146;
-    p = &num;
-    assert(_int_hash(p, &hash) == true);
-    num = 63729779;
-    p = &num;
-    assert(_int_hash(p, &hash) == true);
-    /* Test for NULL*/
-    assert(_int_hash(p, NULL) == false);
-    assert(_int_hash(NULL, NULL) == false);
-    assert(_int_hash(NULL, &hash) == false);
-
-    
 
 
     free(str);
