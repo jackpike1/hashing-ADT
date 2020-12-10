@@ -4,6 +4,11 @@
 #include <string.h>
 
 #define INITIALSIZE 17
+#define MULTIPLIER 37
+
+bool _string_hash(void* key, long unsigned* hash);
+bool _int_hash(void* key, long unsigned* hash);
+bool _add_hash(assoc** a, void* key, long unsigned* hash);
 
 /*
    Initialise the Associative array
@@ -29,6 +34,8 @@ assoc* assoc_init(int keysize) {
 
 
 void assoc_insert(assoc** a, void* key, void* data) {
+
+    
 
 }
 
@@ -63,10 +70,66 @@ void assoc_free(assoc* a) {
 
 }
 
+/* Multiplication method taken from \
+http://www.cs.yale.edu/homes/aspnes/pinewiki/C(2f)HashTables.html */
+
+bool _string_hash(void* key, long unsigned* hash) {
+
+    long unsigned h;
+    unsigned const char *us;
+   
+    if (key == NULL || hash == NULL) {
+       return false;
+    }
+
+    /* cast s to unsigned const char * */
+    /* this ensures that elements of s will be treated as having values >= 0 */
+    us = (unsigned const char *) key;
+   
+    h = 0;
+    while(*us != '\0') {
+
+        h = h * MULTIPLIER + *us;
+        us++;
+    } 
+   
+    *hash = h;
+    return true;
+}
+
+/* Hash function taken from
+https://stackoverflow.com/questions/664014/what-integer-hash-function-are-\
+good-that-accepts-an-integer-hash-key */
+
+bool _int_hash(void* key, long unsigned* hash) {
+
+    long unsigned h;
+    
+    if (key == NULL || hash == NULL) {
+       return false;
+    }
+
+    h = *((long unsigned*)key);
+
+    h = ((h >> 16) ^ h) * 0x45d9f3b;
+    h = ((h >> 16) ^ h) * 0x45d9f3b;
+    h = (h >> 16) ^ h;
+    
+    *hash = h;
+    return true;
+
+}
+
+bool _add_hash(assoc** a, void* key, long unsigned* hash) {
+
+   
+}
 
 void _assoc_test(void) {
 
-    int key, data;
+    int key, data; 
+    unsigned long num, hash;
+    void *p;
     char *str = (char *)ncalloc(sizeof(char), 100);
     assoc *a, *b;
     
@@ -78,7 +141,6 @@ void _assoc_test(void) {
     assert(a->capacity = INITIALSIZE);
     assert(a->hash_table[0].key == 0);
     assert(a->hash_table[0].data == 0);
-
 
     key = 5;
     data = 7;
@@ -115,6 +177,44 @@ void _assoc_test(void) {
     /* Test assoc_free function*/
     assoc_free(a);
     assoc_free(b);
+
+    /* Test _string_hash function*/
+    assert(_string_hash(str, &hash) == true);
+    assert(hash > 0);
+    strcpy(str, "Test 1");
+    assert(_string_hash(str, &hash) == true);
+    assert(hash > 0);
+    strcpy(str, "A second test");
+    assert(_string_hash(str, &hash) == true);
+    assert(hash > 0);
+    strcpy(str, "Third test");
+    assert(_string_hash(str, &hash) == true);
+    assert(hash > 0);
+    /* Test for NULL*/
+    assert(_string_hash(NULL, &hash) == false);
+    assert(_string_hash(str, NULL) == false);
+    assert(_string_hash(NULL, NULL) == false);
+
+    /*Test_int_hash function*/
+    num = 334837739;
+    p = &num;
+    assert(_int_hash(p, &hash) == true);
+    num = 462;
+    p = &num;
+    assert(_int_hash(p, &hash) == true);
+    num = 92057328146;
+    p = &num;
+    assert(_int_hash(p, &hash) == true);
+    num = 63729779;
+    p = &num;
+    assert(_int_hash(p, &hash) == true);
+    /* Test for NULL*/
+    assert(_int_hash(p, NULL) == false);
+    assert(_int_hash(NULL, NULL) == false);
+    assert(_int_hash(NULL, &hash) == false);
+
+    
+
 
     free(str);
 
