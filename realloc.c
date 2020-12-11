@@ -1,14 +1,16 @@
 #include "specific.h"
 #include "../../ADTs/General/general.h"
 #include <assert.h>
-#include <string.h>
+#include <stdlib.h>
 
 #define INITIALSIZE 17
 #define MULTIPLIER 37
+#define PRIME 13
 
 bool _string_hash(assoc** a, void* key, long unsigned* hash);
 bool _int_hash(assoc** a, void* key, long unsigned* hash);
 bool _add_hash(assoc** a, void* key, void* data);
+bool _probe(assoc* p, long unsigned *hash);
 
 /*
    Initialise the Associative array
@@ -124,26 +126,72 @@ bool _int_hash(assoc** a, void* key, long unsigned* hash) {
 
 bool _add_hash(assoc** a, void* key, void *data) {
 
-    long unsigned hash;
+    long unsigned hash = 0;
     assoc *p = *a;
-    
 
     if (p->keysize == 0) {
-       _string_hash(a, key, &hash);
-       strcpy(p->hash_table[hash].key, key);
-       p->hash_table[hash].flag = true;
-       p->hash_table[hash].data = data;
-    }
-    else {
-       _int_hash(a, key, &hash);
-       memcpy(p->hash_table[hash].key, key, sizeof(int));
-       p->hash_table[hash].flag = true;
-    }
+        _string_hash(a, key, &hash);
 
-    return true;
+        /*If collision, use double hash to find empty cell*/
+        if (p->hash_table[hash].flag == true) {
+            if (!_probe(p, &hash)) {
+                on_error("Error finding empty cell\n");
+            }
+        }
+        
+        strcpy(p->hash_table[hash].key, key);
+        p->hash_table[hash].flag = true;
+        p->hash_table[hash].data = data;
+      }
+
+    else {
+        _int_hash(a, key, &hash);
+
+        /*If collision, use double hash to find empty cell*/
+        if (p->hash_table[hash].flag == true) {
+            if (!_probe(p, &hash)) {
+                on_error("Error finding empty cell\n");
+            }
+        }
+
+        memcpy(p->hash_table[hash].key, key, sizeof(int));
+        p->hash_table[hash].flag = true;
+     }
+
+     return true;
 
 }
 
+bool _probe(assoc* p, long unsigned *hash) {
+                                   
+    int i, step, size, new_hash;
+
+    if (p == NULL || hash == NULL) {
+        return false;
+    }
+
+    /*Double hash function from \
+    https://www.geeksforgeeks.org/double-hashing/ */
+    step = PRIME - (*(int*)hash % PRIME);
+    
+    size = p->capacity;
+    new_hash = *(hash) + step;
+
+    for (i = 0; i < size; i++) {
+
+       /*Wrap around hash_table*/
+       if (new_hash >= size) {
+          new_hash = new_hash -size;
+       }
+       /*Check for empty cell */
+       if (p->hash_table[new_hash].flag == false) {
+          *hash = new_hash;
+          return true;
+       }
+        new_hash = new_hash + step;
+    }
+    return false;
+}
 
 void _assoc_test(void) {
 
@@ -207,7 +255,6 @@ void _assoc_test(void) {
     strcpy(str, "Third test");
     assert(_string_hash(&a, str, &hash) == true);
     assert(hash < INITIALSIZE);
-    printf("%lu\n", hash);
     /* Test for NULL*/
     assert(_string_hash(&a, NULL, &hash) == false);
     assert(_string_hash(&a, str, NULL) == false);
@@ -238,6 +285,39 @@ void _assoc_test(void) {
     /* Test assoc_free function*/
     assoc_free(a);
     assoc_free(b);
+
+    /*Test _probe function*/
+    a = assoc_init(0);
+    a->hash_table[2].flag = true;
+    hash = 2;
+    p = &hash;
+    _probe(a, p);
+    assert(*(int*)p == 13);
+    
+    a->hash_table[13].flag = true;
+    hash = 2;
+    p = &hash;
+    _probe(a, p);
+    assert(*(int*)p == 7);
+    
+    a->hash_table[5].flag = true;
+    hash = 5;
+    p = &hash;
+    _probe(a, p);
+    assert(*(int*)p == 4);
+
+    a->hash_table[16].flag = true;
+    hash = 16;
+    p = &hash;
+    _probe(a, p);
+    assert(*(int*)p == 9);
+
+    /*Test for NULL*/
+    assert(_probe(NULL, p) == false);
+    assert(_probe(a, NULL) == false);
+
+    /* Test _add_hash*/
+    
 
 
     free(str);
