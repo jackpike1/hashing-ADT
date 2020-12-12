@@ -189,22 +189,13 @@ bool _probe(assoc* p, unsigned int*hash) {
 
 bool _add_data(assoc *a, void* key, void* data, unsigned int hash) {
 
-    void* p = 0;
-
     if (a == NULL || key == NULL) {
         return false;
     }
 
     a->hash_table[hash].data = data;
     a->hash_table[hash].flag = true;
-    if (a->keysize) {
-         a->hash_table[hash].key = key;
-    }
-    else {
-        p = &key;
-        a->hash_table[hash].key = p;
-        printf("%s\n", *(char**)a->hash_table[hash].key);
-    }
+    a->hash_table[hash].key = key;
 
     return true;
 }
@@ -355,7 +346,7 @@ void _assoc_test(void) {
     strcpy(str, "Hello, World!");
     hash = 16;
     assert(_add_data(b, str, NULL, hash));
-    assert(strcmp(str, *(char **)b->hash_table[hash].key) == 0);
+    assert(strcmp(str, (char *)b->hash_table[hash].key) == 0);
 
 
     /*Test for NULL*/
@@ -379,13 +370,18 @@ void _assoc_test(void) {
     assert(a->hash_table[9].flag == true);
     assert(*(int*)(a->hash_table[9].key) == key);
 
-
     b = assoc_init(0);
     strcpy(str2, "I hate C");
     p = &str2;
     assert(_add_hash(b, p, NULL));
     assert(b->hash_table[7].flag == true);
-    assert(strcmp(str, *(char**)b->hash_table[7].key)== 0);
+    assert(strcmp(str2, (char*)b->hash_table[7].key)== 0);
+
+    strcpy(str2, "I actually love C");
+    p = &str2;
+    assert(_add_hash(b, p, NULL));
+    assert(b->hash_table[4].flag == true);
+    assert(strcmp(str2, (char*)b->hash_table[4].key)== 0);
 
     assoc_free(a);
     assoc_free(b);    
