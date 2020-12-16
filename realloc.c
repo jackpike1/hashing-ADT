@@ -12,6 +12,7 @@
 
 bool _string_hash(assoc* a, void* key, unsigned int* hash);
 bool _int_hash(assoc* a, void* key, unsigned int* hash);
+unsigned int _get_hash(assoc* a, void* key);
 bool _add_hash(assoc* a, void* key, void* data);
 bool _probe(assoc* p, unsigned int*hash);
 bool _add_data(assoc* a, void* key, void* data, unsigned int hash);
@@ -50,18 +51,23 @@ void assoc_insert(assoc** a, void* key, void* data) {
     assoc *p, *b;
     p = *a;
     
-    /* If 2/3 full capacity: realloc, rehash, add hash\
-     re-direct pointer and free old structure*/
-    if (p->size == (unsigned int)(p->capacity/1.5)) {
-        b = _realloc(p);
-        assert(_rehash(p, b));
-        *a = b;
-        _add_hash(b, key, data);
-        free(p->hash_table);
-        free(p);
+    /*Check for duplicates*/
+    if (_duplicate(p, key)) {
     }
     else {
-        _add_hash(p, key, data);
+    /* If 2/3 capacity: realloc, rehash, add hash\
+     re-direct pointer and free old structure*/
+        if (p->size == (unsigned int)(p->capacity/1.5)) {
+            b = _realloc(p);
+            assert(_rehash(p, b));
+            *a = b;
+            _add_hash(b, key, data);
+            free(p->hash_table);
+            free(p);
+        }
+        else {
+            _add_hash(p, key, data);
+        }
     }
 }
 
@@ -160,14 +166,10 @@ bool _int_hash(assoc* a, void* key, unsigned int* hash) {
 
 }
 
-bool _add_hash(assoc* a, void* key, void *data) {
+unsigned int _get_hash(assoc* a, void* key) {
 
     unsigned int hash = 0;
 
-    if (a == NULL || key == NULL) {
-        return false;
-    }
-    
     if (a->keysize) {
         /*Get hash code*/
         if (!_int_hash(a, key, &hash)) {
@@ -180,8 +182,21 @@ bool _add_hash(assoc* a, void* key, void *data) {
             on_error("Error from void pointer\n");
         }
     }
+    return hash;
+}
+
+bool _add_hash(assoc* a, void* key, void *data) {
+
+    unsigned int hash = 0;
+
+    if (a == NULL || key == NULL) {
+        return false;
+    }
+    
+    hash = _get_hash(a, key); 
+
     /*If collision, get new hash code*/
-    if (a->hash_table[hash].flag == true) {
+    if (a->hash_table[hash].flag) {
         if (!_probe(a, &hash)){
             on_error("Error finding a hash code\n");
         }
@@ -203,7 +218,6 @@ bool _probe(assoc* p, unsigned int*hash) {
 
     /*https://www.geeksforgeeks.org/double-hashing/ */
     step = PRIME - (*(int*)hash % PRIME);
-    
     size = p->capacity, new_hash = *(hash) + step;
 
     for (i = 0; i < size; i++) {
@@ -293,36 +307,29 @@ bool _duplicate(assoc* a, void* key) {
 
     unsigned int hash = 0, step, size;
 
+    hash = _get_hash(a, key);
     size = a->capacity, step = PRIME - (hash % PRIME);
-
-    if (a->keysize) {
-        /*Get hash code*/
-        if (!_int_hash(a, key, &hash)) {
-            on_error("Eror from void pointer\n");
-    }    
-    }
-    else {
-        /*Get hash code*/
-        if (!_string_hash(a, key, &hash)) {
-            on_error("Error from void pointer\n");
-        }
-    }
     
     /*Check single and double hashes*/
     while (a->hash_table[hash].flag) {
-        if (a->hash_table[hash].key == key) {
-            return true;
+        if (a->keysize == 0) {
+            if (!strcmp((char*)a->hash_table[hash].key, (char*)key)) {
+                return true;
+            }
         }
-        
-        hash = hash + step;
+        else {
+            if (*(int*)a->hash_table[hash].key == *(int*)key) {
+                return true;
+            }
+        }
+        hash += step;
+        /*Wrap around hash table*/
         if (hash >= size) {
-          hash = hash -size;
-       }
+            hash = hash -size;
+        }
     }
     return false;  
 }
-
-
 
 void _assoc_test(void) {
 
@@ -673,7 +680,111 @@ void _assoc_test(void) {
 
     assoc_free(b);
 
+    /*Test _duplicate*/
+    b = assoc_init(0);
+    strcpy(str2, "Hello");
+    strcpy(str3,"goodbye");
+    strcpy(str4, "ink");
+    strcpy(str5, "minx");
+    strcpy(str6, "trifle");
+    strcpy(str7, "dog");
+    c = &str2;
+    d = &str3;
+    e = &str4;
+    f = &str5;
+    g = &str6;
+    h = &str7;
+    cc = 4;
+    ee = 78;
+    ff = 523;
+    gg = 69;
+    hh = 123;
+    assoc_insert(&b, c, &cc);
+    assoc_insert(&b, e, &ee);
+    assoc_insert(&b, f, &ff);
+    assoc_insert(&b, g, &gg);
+    assoc_insert(&b, h, &hh);
 
+    assert(_duplicate(b, &str2));
+    assert(_duplicate(b, e));
+    assert(_duplicate(b, f));
+    assert(_duplicate(b, g));
+
+    a = _realloc(b);
+    assert(!_duplicate(a, c));
+    assert(!_duplicate(a, d));
+    assert(!_duplicate(a, e));
+
+    _rehash(b, a);
+
+    assert(_duplicate(a, c));
+    assert(_duplicate(a, e));
+    assert(_duplicate(a, f));
+    assert(_duplicate(a, g));
+
+    assoc_free(a);
+    assoc_free(b);
+
+    a = assoc_init(sizeof(int));
+    cc = 87387386;
+    ee = 27028464;
+    ff = 526283;
+    gg = 937464;
+    hh = 7635322;
+    c = &cc;
+    e = &ee;
+    f = &ff;
+    g = &gg;
+    h = &hh;
+    _add_hash(a, c, NULL);
+    _add_hash(a, e, NULL);
+    _add_hash(a, f, NULL);
+    _add_hash(a, g, NULL);
+    _add_hash(a, h, NULL);
+    b = _realloc(a);
+    assert(_rehash(a, b));
+
+    assert(_duplicate(a, c));
+    assert(_duplicate(a, e));
+    assert(_duplicate(a, f));
+    assert(_duplicate(a, g));
+
+    assert(_duplicate(b, c));
+    assert(_duplicate(b, e));
+    assert(_duplicate(b, f));
+    g = &ff;
+    assoc_insert(&b, g, &gg);
+
+
+    assoc_free(a);
+    assoc_free(b);
+
+    b = assoc_init(0);
+    strcpy(str2, "Hello");
+    strcpy(str3,"goodbye");
+    strcpy(str4, "ink");
+    strcpy(str5, "minx");
+    strcpy(str6, "trifle");
+    strcpy(str7, "dog");
+    c = &str2;
+    d = &str3;
+    e = &str4;
+    f = &str5;
+    g = &str6;
+    h = &str6;
+    cc = 4;
+    ee = 78;
+    ff = 523;
+    gg = 69;
+    hh = 123;
+    assoc_insert(&b, c, &cc);
+    assoc_insert(&b, e, &ee);
+    assoc_insert(&b, f, &ff);
+    assoc_insert(&b, g, &gg);
+    assoc_insert(&b, &str6, &hh);
+    assoc_insert(&b, &str5, &hh);
+
+    assoc_free(b);
 
 
     free(str);
