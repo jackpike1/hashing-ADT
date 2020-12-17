@@ -22,6 +22,7 @@ unsigned int _primetable(assoc* a);
 bool _isprime(unsigned int c); 
 bool _rehash(assoc* a, assoc* b);
 bool _duplicate(assoc* a, void* key);
+hash _search(assoc* a, void* key);
 
 /*
    Initialise the Associative array
@@ -56,7 +57,7 @@ void assoc_insert(assoc** a, void* key, void* data) {
     if (_duplicate(p, key)) {
     }
     else {
-    /* If 2/3 capacity: realloc, rehash, add hash\
+    /* If 2/3 capacity: realloc, rehash, add hash,\
      re-direct pointer and free old structure*/
         if (p->size == (unsigned int)(p->capacity TWOTHIRDS)) {
             b = _realloc(p);
@@ -78,15 +79,7 @@ void assoc_insert(assoc** a, void* key, void* data) {
 
 unsigned int assoc_count(assoc* a) {
    
-    unsigned int i, capacity = a->capacity;
-    unsigned int count = 0;
-
-    for (i = 0; i < capacity; i++){
-        if (a->hash_table[i].flag) {
-            count += 1;
-        }
-    }
-    return count;
+    return a->size;
 }
 
 /*   Returns a pointer to the data, given a key
@@ -95,15 +88,11 @@ unsigned int assoc_count(assoc* a) {
 
 void* assoc_lookup(assoc* a, void* key) {
 
-   unsigned int i, capacity = a->capacity;
-
-   for (i = 0; i < capacity; i++) {
-       if (a->hash_table[i].key == key) {
-           return a->hash_table[i].data;
-       }
-   }
-   return NULL;
+    hash hash1 = _search(a, key);
+    
+    return hash1.data;
 }
+
 
 /*
 void assoc_todot(assoc* a) {
@@ -118,30 +107,39 @@ void assoc_free(assoc* a) {
     free(a);
 }
 
-/* djb2 hash function: \
+/* Two variations of djb2 hash function from: \
 https://gist.github.com/MohamedTaha98/ccdf734f13299efb73ff0b12f7ce429f */
 
 bool _hash(assoc* a, void* key, unsigned int* hash) {
 
-    unsigned long h = 5381, c;
+    unsigned long h = 5381;
     char *str;
+    unsigned int count = 0; 
     str = (char*)key;
-   
+    
     if (key == NULL || hash == NULL) {
        return false;
     }
 
-    while ((c = *str++)) {
-            h = ((h << 5) + h) + c;
+    if (a->keysize) {
+        while ((count < a->keysize)) {
+            h = ((h << 5) + h) + *str;
+            count++;
+        }
     }
-
+    else {
+        while ((*str++)) {
+            h = ((h << 5) + h) + *str;
+        }
+    }
     *hash = h % a->capacity;
     return true;
 }
 
 bool _hash_two(assoc* a, void* key, unsigned int* hash) {
 
-    unsigned long h = 599, c;
+    unsigned long h = 599;
+    unsigned int count = 0; 
     char *str;
     str = (char*)key;
    
@@ -149,13 +147,19 @@ bool _hash_two(assoc* a, void* key, unsigned int* hash) {
        return false;
     }
 
-    while ((c = *str++)) {
-            h = ((h << 3) + h) + c;
+    if (a->keysize) {
+        while ((count < a->keysize)) {
+            h = ((h << 3) + h) + *str;
+            count++;
+        }
     }
-
+    else {
+        while ((*str++)) {
+            h = ((h << 3) + h) + *str;
+       }
+    }
     *hash = h % a->capacity;
     return true;
-
 }
 
 unsigned int _get_hash(assoc* a, void* key) {
@@ -195,13 +199,17 @@ bool _add_hash(assoc* a, void* key, void *data) {
 bool _probe(assoc* p, void* key, unsigned int* hash) {
                                    
     int i, step, size, new_hash;
+    unsigned int hashtwo = 0;
 
     if (p == NULL || hash == NULL) {
         return false;
     }
 
-    /*https://www.geeksforgeeks.org/double-hashing/ */
-    step = PRIME - (*(int*)hash % PRIME);
+    assert(_hash_two(p, key, &hashtwo));
+
+    /*https://www.geeksforgeeks.org/double-hashing/ 
+    Use hashtwo to create step to probe*/
+    step = PRIME - (hashtwo % PRIME);
     size = p->capacity, new_hash = *(hash) + step;
 
     for (i = 0; i < size; i++) {
@@ -210,7 +218,7 @@ bool _probe(assoc* p, void* key, unsigned int* hash) {
           new_hash = new_hash -size;
        }
        /*Check for empty cell */
-       if (p->hash_table[new_hash].flag == false) {
+       if (!p->hash_table[new_hash].flag) { 
           *hash = new_hash;
           return true;
        }
@@ -240,7 +248,6 @@ assoc* _realloc(assoc* a) {
     b->hash_table = (hash*) ncalloc(sizeof(hash), _primetable(a));
     b->capacity = _primetable(a);
     b->keysize = a->keysize;
-    b->size = a->size;
     
     return b;
 }
@@ -289,40 +296,56 @@ bool _rehash(assoc* a, assoc* b) {
 
 bool _duplicate(assoc* a, void* key) {
 
-    unsigned int hash = 0, step, size;
+    hash hash1 = _search(a, key);
 
-    hash = _get_hash(a, key);
-    size = a->capacity, step = PRIME - (hash % PRIME);
+    if (hash1.key!= NULL) {
+        return true;
+    }
+    return false;
+}
+
+hash _search(assoc* a, void* key) {
+    
+    hash empty_hash;
+    unsigned int hashone = 0, hashtwo = 0, step, size = a->capacity;
+    hashone = _get_hash(a, key);
     
     /*Check single and double hashes for duplicates*/
-    while (a->hash_table[hash].flag) {
+    while (a->hash_table[hashone].flag) {
         if (a->keysize == 0) {
-            if (!strcmp((char*)a->hash_table[hash].key, (char*)key)) {
-                return true;
+            if (!strcmp((char*)a->hash_table[hashone].key, (char*)key)) {
+                return a->hash_table[hashone];
             }
         }
         else {
-            if (!memcmp(a->hash_table[hash].key, key, a->keysize)) {
-                return true;
+            if (!memcmp(a->hash_table[hashone].key, key, a->keysize)) {
+                return a->hash_table[hashone];
             }
         }
-        hash += step;
+        _hash_two(a, key, &hashtwo);
+        step = PRIME - (hashtwo % PRIME); 
+        hashone += step;
         /*Wrap around hash table*/
-        if (hash >= size) {
-            hash = hash -size;
+        if (hashone >= size) {
+            hashone = hashone -size;
         }
     }
-    return false;  
+   return empty_hash;
 }
 
 void _assoc_test(void) {
 
+    hash hash1;
     int key, data, cc, ee, ff, gg, hh, ii; 
     unsigned int num, hash;
+    unsigned long nn;
+    double jj, kk;
+    float ll, mm; 
     void *p, *d, *c, *e, *f, *g, *h, *i;
     char *str = (char *)ncalloc(sizeof(char), 100);
     char str2[1000], str3[1000], str4[1000], str5[1000], str6[1000], str7[1000];
     assoc *a, *b;
+    
     
     /* Test assoc_init function*/
     a = assoc_init(sizeof(int));
@@ -365,58 +388,175 @@ void _assoc_test(void) {
     b->hash_table[6].key = &str;
     assert(strcmp(str,*(char **)b->hash_table[6].key) == 0);
 
-    /* Test _string_hash function*/
-    assert(_hash(a, str, &hash) == true);
+    /* Test _hash function*/
+    assert(_hash(b, str, &hash) == true);
     assert(hash < INITIALSIZE);
     strcpy(str, "Test 1");
-    assert(_hash(a, str, &hash) == true);
+    assert(_hash(b, str, &hash) == true);
     assert(hash < INITIALSIZE);
     strcpy(str, "A second test");
-    assert(_hash(a, str, &hash) == true);
+    assert(_hash(b, str, &hash) == true);
     assert(hash < INITIALSIZE);
     strcpy(str, "Third test");
-    assert(_hash(a, str, &hash) == true);
+    assert(_hash(b, str, &hash) == true);
     assert(hash < INITIALSIZE);
+
+    assoc_free(b);
+
     /* Test for NULL*/
     assert(_hash(a, NULL, &hash) == false);
     assert(_hash(a, str, NULL) == false);
     assert(_hash(a, NULL, NULL) == false);
 
-    /* Test assoc_free function*/
-    assoc_free(a);
+    /*Test ints*/
+    cc = 84794;
+    ee = 467363;
+    ff = 33839;
+    gg = 393933;
+    hash = 0; 
+    assert(_hash(a, &cc, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash(a, &ee, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash(a, &ff, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash(a, &gg, &hash) == true);
+    assert(hash < INITIALSIZE);
+
+    /*Test for doubles, floats, longs*/
+    b = assoc_init(sizeof(double));
+    jj = 4829.6176;
+    kk = 16262.0843;
+    hash = 0; 
+    assert(_hash(b, &jj, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash(b, &kk, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assoc_free(b);
+    b = assoc_init(sizeof(float));
+    ll = 15162.1626;
+    mm = 37386.122;
+    assert(_hash(b, &ll, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash(b, &mm, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assoc_free(b);
+    b = assoc_init(sizeof(unsigned long));
+    nn = 8127282839916836;
+    assert(_hash(b, &nn, &hash) == true);
+    assert(hash < INITIALSIZE);
     assoc_free(b);
 
-    /*Test _probe function
+    /* Test assoc_free function*/
+    assoc_free(a);
+
+    /*Test _get_hash function*/
+    a = assoc_init(sizeof(int));
+    cc = 37383;
+    ee = 2929;
+    ff = 18162;
+    assert(INITIALSIZE > _get_hash(a, &cc));
+    assert(INITIALSIZE > _get_hash(a, &ee));
+    assert(INITIALSIZE > _get_hash(a, &ff));
+    assoc_free(a);
+
+    /* Test _hash_two function*/
+    b = assoc_init(0);
+    strcpy(str, "Test 1");
+    assert(_hash_two(b, str, &hash) == true);
+    assert(hash < INITIALSIZE);
+    strcpy(str, "A second test");
+    assert(_hash_two(b, str, &hash) == true);
+    assert(hash < INITIALSIZE);
+    strcpy(str, "Third test");
+    assert(_hash_two(b, str, &hash) == true);
+    assert(hash < INITIALSIZE);
+
+    assoc_free(b);
+
+    /* Test for NULL*/
+    assert(_hash_two(a, NULL, &hash) == false);
+    assert(_hash_two(a, str, NULL) == false);
+    assert(_hash_two(a, NULL, NULL) == false);
+
+    /*Test ints*/
+    a = assoc_init(sizeof(int));
+    cc = 84794;
+    ee = 467363;
+    ff = 33839;
+    gg = 393933;
+    hash = 0; 
+    assert(_hash_two(a, &cc, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash_two(a, &ee, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash_two(a, &ff, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash_two(a, &gg, &hash) == true);
+    assert(hash < INITIALSIZE);
+
+    /*Test for doubles, floats, longs*/
+    b = assoc_init(sizeof(double));
+    jj = 4829.6176;
+    kk = 16262.0843;
+    hash = 0; 
+    assert(_hash_two(b, &jj, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash_two(b, &kk, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assoc_free(b);
+    b = assoc_init(sizeof(float));
+    ll = 15162.1626;
+    mm = 37386.122;
+    assert(_hash_two(b, &ll, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assert(_hash_two(b, &mm, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assoc_free(b);
+    b = assoc_init(sizeof(unsigned long));
+    nn = 8127282839916836;
+    assert(_hash_two(b, &nn, &hash) == true);
+    assert(hash < INITIALSIZE);
+    assoc_free(b);
+
+    /* Test assoc_free function*/
+    assoc_free(a);
+
+    /*Test _probe function*/
     a = assoc_init(0);
     a->hash_table[2].flag = true;
     hash = 2;
+    cc = 7353;
     p = &hash;
-    _probe(a, p);
+    _probe(a, &cc, p);
     assert(*(int*)p == 13);
     
     a->hash_table[13].flag = true;
     hash = 2;
+    ee = 37363;
     p = &hash;
-    _probe(a, p);
-    assert(*(int*)p == 7);
+    _probe(a, &ee, p);
+    assert(*(int*)p == 10);
     
     a->hash_table[5].flag = true;
     hash = 5;
+    ff = 2282;
     p = &hash;
-    _probe(a, p);
+    _probe(a, &ff, p);
     assert(*(int*)p == 4);
 
     a->hash_table[16].flag = true;
     hash = 16;
+    hh = 272728;
     p = &hash;
-    _probe(a, p);
-    assert(*(int*)p == 9);*/
+    _probe(a, &hh, p);
+    assert(*(int*)p == 12);
 
-    /*Test for NULL
-    assert(_probe(NULL, p) == false);
-    assert(_probe(a, NULL) == false);
+    /*Test for NULL*/
+    assert(_probe(NULL, &ff, p) == false);
+    assert(_probe(a, &ff, NULL) == false);
 
-    assoc_free(a);*/
+    assoc_free(a);
 
     /* Test _add_data function*/
     a = assoc_init(sizeof(int));
@@ -456,14 +596,14 @@ void _assoc_test(void) {
     num = 2333289;
     p = &num;
     assert(_add_hash(a, p, NULL));
-    assert(a->hash_table[12].flag == true);
-    assert(*(unsigned int*)(a->hash_table[12].key) == num);
+    assert(a->hash_table[9].flag == true);
+    assert(*(unsigned int*)(a->hash_table[9].key) == num);
 
     key = 4701931;
     d = &key;
     assert(_add_hash(a, d, NULL));
-    assert(a->hash_table[5].flag == true);
-    assert(*(int*)(a->hash_table[5].key) == key);
+    assert(a->hash_table[4].flag == true);
+    assert(*(int*)(a->hash_table[4].key) == key);
 
     b = assoc_init(0);
     strcpy(str2, "I hate C");
@@ -475,8 +615,8 @@ void _assoc_test(void) {
     strcpy(str2, "I actually love C");
     p = &str2;
     assert(_add_hash(b, p, NULL));
-    assert(b->hash_table[3].flag == true);
-    assert(strcmp(str2, (char*)b->hash_table[3].key)== 0);
+    assert(b->hash_table[0].flag == true);
+    assert(strcmp(str2, (char*)b->hash_table[0].key)== 0);
 
     assoc_free(a);
     assoc_free(b);    
@@ -506,7 +646,7 @@ void _assoc_test(void) {
     a->size = 16;
     b = _realloc(a);
     assert(b->capacity == 71);
-    assert(b->size == 16);
+    assert(b->size == 0);
     assoc_free(a);
     a = _realloc(b);
     assert(a->capacity == 293);
@@ -535,17 +675,17 @@ void _assoc_test(void) {
     assert(_rehash(a, b));
 
     /*Show hashed into different position*/
-    assert(*(int*)a->hash_table[1].key == cc);
-    assert(*(int*)b->hash_table[28].key == cc);
-    assert(*(int*)a->hash_table[4].key == ee);
-    assert(*(int*)b->hash_table[27].key == ee);
-    assert(*(int*)a->hash_table[0].key == ff);
-    assert(*(int*)b->hash_table[44].key == ff);
-    assert(*(int*)a->hash_table[13].key == gg);
-    assert(*(int*)b->hash_table[17].key == gg);
-    assert(*(int*)a->hash_table[12].key == hh);
-    assert(*(int*)b->hash_table[68].key == hh);
-
+    assert(*(int*)a->hash_table[9].key == cc);
+    assert(*(int*)b->hash_table[62].key == cc);
+    assert(*(int*)a->hash_table[10].key == ee);
+    assert(*(int*)b->hash_table[8].key == ee);
+    assert(*(int*)a->hash_table[11].key == ff);
+    assert(*(int*)b->hash_table[46].key == ff);
+    assert(*(int*)a->hash_table[16].key == gg);
+    assert(*(int*)b->hash_table[25].key == gg);
+    assert(*(int*)a->hash_table[15].key == hh);
+    assert(*(int*)b->hash_table[48].key == hh);
+    
     ii = 52;
     i = &ii;
     _add_hash(b, i, NULL);
@@ -553,7 +693,7 @@ void _assoc_test(void) {
     assoc_free(a);
     assoc_free(b);
 
-    /*Test assoc_insert and assoc_count*/
+    /*Test assoc_insert, assoc_search and assoc_count*/
     a = assoc_init(sizeof(int));
     _add_hash(a, e, NULL);
     _add_hash(a, f, NULL);
@@ -561,7 +701,6 @@ void _assoc_test(void) {
     _add_hash(a, h, NULL);
     a->size = 11;
     assoc_insert(&a, c, NULL);
-
     assoc_free(a);
 
     b = assoc_init(0);
@@ -587,6 +726,20 @@ void _assoc_test(void) {
     assoc_insert(&b, e, &ee);
     assoc_insert(&b, f, &ff);
     assoc_insert(&b, g, &gg);
+
+    hash1 = _search(b, c);
+    assert(!strcmp(hash1.key, c));
+    hash1 = _search(b, d);
+    assert(!strcmp(hash1.key, d));
+    hash1 = _search(b, e);
+    assert(!strcmp(hash1.key, e));
+    hash1 = _search(b, f);
+    assert(!strcmp(hash1.key, f));
+    hash1 = _search(b, g);
+    assert(!strcmp(hash1.key, g));
+    hash1 = _search(b, h);
+    assert(hash1.key == NULL);
+
     assert(assoc_count(b) == 5);
     b->size = 11;
     assoc_insert(&b, h, NULL);
@@ -746,7 +899,6 @@ void _assoc_test(void) {
     assoc_insert(&b, &str5, &hh);
 
     assoc_free(b);
-
 
     free(str);
 }
