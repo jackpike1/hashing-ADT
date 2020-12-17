@@ -21,7 +21,7 @@ assoc* _realloc(assoc* a);
 unsigned int _primetable(assoc* a);
 bool _isprime(unsigned int c); 
 bool _rehash(assoc* a, assoc* b);
-bool _duplicate(assoc* a, void* key);
+bool _isduplicate(assoc* a, void* key);
 hash _search(assoc* a, void* key);
 
 /*
@@ -54,7 +54,7 @@ void assoc_insert(assoc** a, void* key, void* data) {
     p = *a;
     
     /*Check for duplicates*/
-    if (_duplicate(p, key)) {
+    if (_isduplicate(p, key)) {
     }
     else {
     /* If 2/3 capacity: realloc, rehash, add hash,\
@@ -294,7 +294,7 @@ bool _rehash(assoc* a, assoc* b) {
     return true;
 }
 
-bool _duplicate(assoc* a, void* key) {
+bool _isduplicate(assoc* a, void* key) {
 
     hash hash1 = _search(a, key);
 
@@ -794,7 +794,7 @@ void _assoc_test(void) {
 
     assoc_free(b);
 
-    /*Test _duplicate*/
+    /*Test _isduplicate*/
     b = assoc_init(0);
     strcpy(str2, "Hello");
     strcpy(str3,"goodbye");
@@ -819,22 +819,22 @@ void _assoc_test(void) {
     assoc_insert(&b, g, &gg);
     assoc_insert(&b, h, &hh);
 
-    assert(_duplicate(b, &str2));
-    assert(_duplicate(b, e));
-    assert(_duplicate(b, f));
-    assert(_duplicate(b, g));
+    assert(_isduplicate(b, &str2));
+    assert(_isduplicate(b, e));
+    assert(_isduplicate(b, f));
+    assert(_isduplicate(b, g));
 
     a = _realloc(b);
-    assert(!_duplicate(a, c));
-    assert(!_duplicate(a, d));
-    assert(!_duplicate(a, e));
+    assert(!_isduplicate(a, c));
+    assert(!_isduplicate(a, d));
+    assert(!_isduplicate(a, e));
 
     _rehash(b, a);
 
-    assert(_duplicate(a, c));
-    assert(_duplicate(a, e));
-    assert(_duplicate(a, f));
-    assert(_duplicate(a, g));
+    assert(_isduplicate(a, c));
+    assert(_isduplicate(a, e));
+    assert(_isduplicate(a, f));
+    assert(_isduplicate(a, g));
 
     assoc_free(a);
     assoc_free(b);
@@ -858,14 +858,14 @@ void _assoc_test(void) {
     b = _realloc(a);
     assert(_rehash(a, b));
 
-    assert(_duplicate(a, c));
-    assert(_duplicate(a, e));
-    assert(_duplicate(a, f));
-    assert(_duplicate(a, g));
+    assert(_isduplicate(a, c));
+    assert(_isduplicate(a, e));
+    assert(_isduplicate(a, f));
+    assert(_isduplicate(a, g));
 
-    assert(_duplicate(b, c));
-    assert(_duplicate(b, e));
-    assert(_duplicate(b, f));
+    assert(_isduplicate(b, c));
+    assert(_isduplicate(b, e));
+    assert(_isduplicate(b, f));
     g = &ff;
     assoc_insert(&b, g, &gg);
 
